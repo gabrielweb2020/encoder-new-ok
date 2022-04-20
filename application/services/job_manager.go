@@ -4,12 +4,12 @@ import (
 	"encoder/application/repositories"
 	"encoder/domain"
 	"encoder/framework/queue"
+	"encoding/json"
+	"github.com/jinzhu/gorm"
+	"github.com/streadway/amqp"
 	"log"
 	"os"
 	"strconv"
-
-	"github.com/jinzhu/gorm"
-	"github.com/streadway/amqp"
 )
 
 type JobManager struct {
@@ -71,7 +71,10 @@ func (j *JobManager) Start(ch *amqp.Channel) {
 
 func (j *JobManager) notifySuccess(jobResult JobWorkerResult, ch *amqp.Channel) error {
 
+	Mutex.Lock()
 	jobJson, err := json.Marshal(jobResult.Job)
+	Mutex.Unlock()
+
 	if err != nil {
 		return err
 	}
@@ -91,9 +94,10 @@ func (j *JobManager) notifySuccess(jobResult JobWorkerResult, ch *amqp.Channel) 
 
 func (j *JobManager) checkParseErrors(jobResult JobWorkerResult) error {
 	if jobResult.Job.ID != "" {
-		log.Printf("MessageID #{jobResult.Message.DeliveryTag}. Error parsing job: #{jobResult.Job.ID}")
+		log.Printf("MessageID: %v. Error during the job: %v with video: %v. Error: %v.",
+		jobResult.Message.DeliveryTag, jobResult.Job.ID, jobResult.Job.Video.ID, jobResult.Error.Error())
 	} else {
-		log.Printf("MessageID #{jobResult.Message.DeliveryTag}. Error parsing message: #{jobResult.Error}")
+		log.Printf("MessageID: %v. Error parsing message: %v", jobResult.Message.DeliveryTag, jobResult.Error)
 	}
 
 	errorMsg := JobNotificationError{
